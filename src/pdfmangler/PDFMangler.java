@@ -85,6 +85,10 @@ public class PDFMangler {
 
                     if ("png".equals(suffix)) {
                         PDPixelMap png = makePng(imageSmall, doc);
+                        int uncompressed = width*height*3;
+                        int compressed = png.getPDStream().getLength();
+                        
+                        System.out.println("  - png: ratio: " + (float) compressed / uncompressed + "%  uncompressed: " + uncompressed + " compressed: " + compressed);
                         xObs.put(imageName, png);
                     }
 
