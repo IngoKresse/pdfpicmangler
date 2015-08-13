@@ -30,77 +30,111 @@ import org.apache.pdfbox.pdmodel.graphics.xobject.PDXObjectImage;
 
 public class PDFMangler {
     private Config config = new Config();
+    private Map<String, Float> cache;
 
-    private PDDocument shrink(PDDocument doc, ImageInfoCache cache) throws IOException {
+    private PDDocument process(PDDocument doc, Map<String, Float> resolutions) throws IOException {
+        cache = resolutions;
+        
         List pages = doc.getDocumentCatalog().getAllPages();
         for (Object p : pages) {
             if (!(p instanceof PDPage))
                 continue;
             PDPage page = (PDPage) p;
-            scanResources(page.getResources(), doc, cache);
+            scanResources(page.getResources(), doc);
         }
         return doc;
     }
 
-    private void scanResources(final PDResources rList, final PDDocument doc, ImageInfoCache cache)
+    private void scanResources(final PDResources rList, final PDDocument doc)
             throws FileNotFoundException, IOException {
         Map<String, PDXObject> xObs = rList.getXObjects();
         for (String imageName : xObs.keySet()) {
             final PDXObject xObj = xObs.get(imageName);
             if (xObj instanceof PDXObjectForm)
-                scanResources(((PDXObjectForm) xObj).getResources(), doc, cache);
+                scanResources(((PDXObjectForm) xObj).getResources(), doc);
             if (!(xObj instanceof PDXObjectImage))
                 continue;
             PDXObjectImage img = (PDXObjectImage) xObj;
-            img.getHeight();
-            System.out.println("size: " + img.getWidth() + "x" + img.getHeight());
-            System.out.println("type: " + img.getSuffix());
-            System.out.println("bytes: " + img.getPDStream().getLength());
-
-            float resolution = cache.getResolution(imageName);
-
-            if (resolution > config.resolutionThreshold) {
-                System.out.println("Compressing image: " + imageName + " ...");
-
-                int width = (int) (img.getWidth() * config.targetResolution / resolution);
-                int height = (int) (img.getHeight() * config.targetResolution / resolution);
-
-                System.out.println("  - resizing: " + img.getWidth() + "x" + img.getHeight()
-                        + "  ->  " + width + "x" + height);
-
-                BufferedImage image = img.getRGBImage();
-
-                BufferedImage imageSmall = resizedImage(width, height, image);
-
-                String suffix = img.getSuffix();
-
-                System.out.println("  - writing back as " + suffix);
-
-                try {
-
-                    if ("jpg".equals(suffix)) {
-                        PDJpeg jpg = makeJpeg(imageSmall, doc);
-                        xObs.put(imageName, jpg);
-                    }
-
-                    if ("png".equals(suffix)) {
-                        PDPixelMap png = makePng(imageSmall, doc);
-                        int uncompressed = width*height*3;
-                        int compressed = png.getPDStream().getLength();
-                        
-                        System.out.println("  - png: ratio: " + (float) compressed / uncompressed + "%  uncompressed: " + uncompressed + " compressed: " + compressed);
-                        xObs.put(imageName, png);
-                    }
-
-                } catch (IOException e) {
-                    System.out.println(e.getMessage());
-                    e.printStackTrace();
-                }
-
+            
+            // got an image!
+            
+            if(config.doExtract) {
+                img.write2file(imageName);
             }
-            img.clear();
+            
+            if(config.doInfo) {
+            
+                System.out.println(imageInfo(img, imageName));
+            }
+            
+            if(config.doShrink) {
+                System.out.println("Compressing image: " + imageName + " ...");
+                imageShrink(doc, imageName, img);
+            
+            }
         }
         rList.setXObjects(xObs);
+    }
+
+    private PDXObjectImage imageShrink(final PDDocument doc, String imageName, PDXObjectImage img) throws IOException {
+        
+        float resolution = cache.get(imageName);
+
+        if (resolution > config.resolutionThreshold) {
+
+            int width = (int) (img.getWidth() * config.targetResolution / resolution);
+            int height = (int) (img.getHeight() * config.targetResolution / resolution);
+
+            System.out.println("  - resizing: " + img.getWidth() + "x" + img.getHeight()
+                    + "  ->  " + width + "x" + height);
+
+            BufferedImage image = img.getRGBImage();
+            BufferedImage imageSmall = resizedImage(width, height, image);
+
+            String suffix = img.getSuffix();
+
+            System.out.println("  - writing back as " + suffix);
+
+            try {
+
+                if ("jpg".equals(suffix)) {
+                    PDJpeg jpg = makeJpeg(imageSmall, doc);
+                    return jpg;
+                }
+
+                if ("png".equals(suffix)) {
+                    PDPixelMap png = makePng(imageSmall, doc);
+                    int uncompressed = width*height*3;
+                    int compressed = png.getPDStream().getLength();
+                    
+                    System.out.println("  - png: ratio: " + (float) compressed / uncompressed + "%  uncompressed: " + uncompressed + " compressed: " + compressed);
+                    return png;
+                }
+
+            } catch (IOException e) {
+                System.out.println(e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        return img;
+    }
+
+    private String imageInfo(PDXObjectImage img, String imageName) {
+        StringBuilder info = new StringBuilder();
+        info.append(img.getPDStream().getLength());
+        info.append("  ");
+        
+        info.append(img.getWidth());
+        info.append("x");
+        info.append(img.getHeight());
+        info.append("  ");
+        
+        info.append(img.getSuffix());
+        info.append("  ");
+        
+        info.append(imageName);
+        
+        return info.toString();
     }
 
     private BufferedImage resizedImage(int width, int height, Image image) {
@@ -118,11 +152,9 @@ public class PDFMangler {
 
     private PDPixelMap makePng(BufferedImage image, final PDDocument doc) throws IOException {
         // TODO use better compression lib here
-
         return new PDPixelMap(doc, image);
-
     }
-
+    
     private PDJpeg makeJpeg(BufferedImage imageSmall, final PDDocument doc) throws IOException {
         final Iterator<ImageWriter> jpgWriters = ImageIO.getImageWritersByFormatName("jpeg");
         final ImageWriter jpgWriter = jpgWriters.next();
@@ -149,36 +181,43 @@ public class PDFMangler {
         if (args.length == 0) {
             System.out.println("usage: java PDFMangler [PDFFILE]");
             return;
+            
         }
+        
         System.out.println("opening file " + args[0]);
-
+        
         PDFMangler mangler = new PDFMangler();
+        
+        mangler.config.inputFileName = args[0];
+        mangler.config.outputFileName = "output.pdf";
+        mangler.config.doInfo = true;
+        mangler.config.doExtract = true;
+        mangler.config.doShrink = false;
+        
+        
         try {
 
-            PDDocument doc = openDocument(args[0]);
+            PDDocument doc = openDocument(mangler.config.inputFileName);
 
-            OccurenceAnalyzer occurences = new OccurenceAnalyzer();
+            ResolutionAnalyzer occurences = new ResolutionAnalyzer();
 
-            ImageInfoCache cache = occurences.analzye(doc);
-
-            System.out.println("--------------------------------------------");
-
-            doc = mangler.shrink(doc, cache);
+            Map<String, Float> cache = occurences.analyze(doc);
 
             System.out.println("--------------------------------------------");
 
-            try {
-                doc.save("small.pdf");
-            } catch (COSVisitorException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
-            }
+            doc = mangler.process(doc, cache);
+
+            System.out.println("--------------------------------------------");
+
+            doc.save("small.pdf");
+
 
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
+        } catch (COSVisitorException e) {
+            e.printStackTrace();
         }
-
     }
 }
