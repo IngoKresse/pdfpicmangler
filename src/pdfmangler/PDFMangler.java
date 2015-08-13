@@ -69,8 +69,8 @@ public class PDFMangler {
             
             if(config.doShrink) {
                 System.out.println("Compressing image: " + imageName + " ...");
-                imageShrink(doc, imageName, img);
-            
+                img = imageShrink(doc, imageName, img);
+                xObs.put(imageName, img);
             }
         }
         rList.setXObjects(xObs);
@@ -122,15 +122,24 @@ public class PDFMangler {
     private String imageInfo(PDXObjectImage img, String imageName) {
         StringBuilder info = new StringBuilder();
         info.append(img.getPDStream().getLength());
-        info.append("  ");
+        info.append(" ");
+        
+        info.append((int) (cache.get(imageName).floatValue()));
+        info.append(" ");
         
         info.append(img.getWidth());
         info.append("x");
         info.append(img.getHeight());
-        info.append("  ");
+        info.append(" ");
         
         info.append(img.getSuffix());
-        info.append("  ");
+        info.append(" ");
+
+        int numBytes = img.getPDStream().getLength();
+        int pixels = img.getWidth() * img.getHeight();
+        
+        info.append((800 * numBytes / pixels) / 100.0);
+        info.append(" ");
         
         info.append(imageName);
         
@@ -155,19 +164,9 @@ public class PDFMangler {
         return new PDPixelMap(doc, image);
     }
     
-    private PDJpeg makeJpeg(BufferedImage imageSmall, final PDDocument doc) throws IOException {
-        final Iterator<ImageWriter> jpgWriters = ImageIO.getImageWritersByFormatName("jpeg");
-        final ImageWriter jpgWriter = jpgWriters.next();
-        final ImageWriteParam iwp = jpgWriter.getDefaultWriteParam();
-        iwp.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-        iwp.setCompressionQuality(config.jpegCompressionRatio);
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-
-        jpgWriter.setOutput(ImageIO.createImageOutputStream(baos));
-        jpgWriter.write(null, new IIOImage(imageSmall, null, null), iwp);
-        ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
-        return new PDJpeg(doc, bais);
-
+    private PDJpeg makeJpeg(BufferedImage image, final PDDocument doc) throws IOException {     
+        PDJpeg jpg = new PDJpeg(doc, image, config.jpegCompressionQuality);
+        return jpg;
     }
 
     private static PDDocument openDocument(String fileName) throws IOException {
@@ -191,7 +190,7 @@ public class PDFMangler {
         mangler.config.inputFileName = args[0];
         mangler.config.outputFileName = "output.pdf";
         mangler.config.doInfo = true;
-        mangler.config.doExtract = true;
+        mangler.config.doExtract = false;
         mangler.config.doShrink = false;
         
         
@@ -209,7 +208,7 @@ public class PDFMangler {
 
             System.out.println("--------------------------------------------");
 
-            doc.save("small.pdf");
+            doc.save(mangler.config.outputFileName);
 
 
         } catch (FileNotFoundException e) {
