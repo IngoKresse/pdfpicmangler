@@ -1,21 +1,13 @@
 package pdfmangler;
 
-import java.util.Iterator;
-import java.util.List;
 import java.awt.Graphics;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
-
-import javax.imageio.IIOImage;
-import javax.imageio.ImageIO;
-import javax.imageio.ImageWriteParam;
-import javax.imageio.ImageWriter;
 
 import org.apache.pdfbox.exceptions.COSVisitorException;
 import org.apache.pdfbox.pdfparser.PDFParser;
@@ -28,8 +20,9 @@ import org.apache.pdfbox.pdmodel.graphics.xobject.PDXObject;
 import org.apache.pdfbox.pdmodel.graphics.xobject.PDXObjectForm;
 import org.apache.pdfbox.pdmodel.graphics.xobject.PDXObjectImage;
 
-public class PDFMangler {
-    private Config config = new Config();
+public class PDFMangler
+{
+    private Options opts = new Options();
     private Map<String, Float> cache;
 
     private PDDocument process(PDDocument doc, Map<String, Float> resolutions) throws IOException {
@@ -58,16 +51,16 @@ public class PDFMangler {
             
             // got an image!
             
-            if(config.doExtract) {
+            if(opts.doExtract) {
                 img.write2file(imageName);
             }
             
-            if(config.doInfo) {
+            if(opts.doStatistics) {
             
                 System.out.println(imageInfo(img, imageName));
             }
             
-            if(config.doShrink) {
+            if(opts.doShrink) {
                 System.out.println("Compressing image: " + imageName + " ...");
                 img = imageShrink(doc, imageName, img);
                 xObs.put(imageName, img);
@@ -80,10 +73,10 @@ public class PDFMangler {
         
         float resolution = cache.get(imageName);
 
-        if (resolution > config.resolutionThreshold) {
+        if (resolution > opts.resolutionThreshold) {
 
-            int width = (int) (img.getWidth() * config.targetResolution / resolution);
-            int height = (int) (img.getHeight() * config.targetResolution / resolution);
+            int width = (int) (img.getWidth() * opts.resolution / resolution);
+            int height = (int) (img.getHeight() * opts.resolution / resolution);
 
             System.out.println("  - resizing: " + img.getWidth() + "x" + img.getHeight()
                     + "  ->  " + width + "x" + height);
@@ -94,20 +87,30 @@ public class PDFMangler {
             String suffix = img.getSuffix();
 
             System.out.println("  - writing back as " + suffix);
-
+            
+            img.clear();
+            
+            int uncompressed = width*height*3;
+            
             try {
 
                 if ("jpg".equals(suffix)) {
                     PDJpeg jpg = makeJpeg(imageSmall, doc);
+                    int compressed = jpg.getPDStream().getLength();
+                    
+                    System.out.println("  - jpg: ratio: " + (float) compressed / uncompressed + "%  uncompressed: " + uncompressed + " compressed: " + compressed);
+                    
+                    jpg.clear();
                     return jpg;
                 }
 
                 if ("png".equals(suffix)) {
                     PDPixelMap png = makePng(imageSmall, doc);
-                    int uncompressed = width*height*3;
                     int compressed = png.getPDStream().getLength();
                     
                     System.out.println("  - png: ratio: " + (float) compressed / uncompressed + "%  uncompressed: " + uncompressed + " compressed: " + compressed);
+                    
+                    png.clear();
                     return png;
                 }
 
@@ -116,6 +119,7 @@ public class PDFMangler {
                 e.printStackTrace();
             }
         }
+
         return img;
     }
 
@@ -165,7 +169,7 @@ public class PDFMangler {
     }
     
     private PDJpeg makeJpeg(BufferedImage image, final PDDocument doc) throws IOException {     
-        PDJpeg jpg = new PDJpeg(doc, image, config.jpegCompressionQuality);
+        PDJpeg jpg = new PDJpeg(doc, image, (float) opts.quality);
         return jpg;
     }
 
@@ -178,25 +182,22 @@ public class PDFMangler {
 
     public static void main(String[] args) {
         if (args.length == 0) {
-            System.out.println("usage: java PDFMangler [PDFFILE]");
+            Options.usage();
             return;
             
         }
         
-        System.out.println("opening file " + args[0]);
+        
         
         PDFMangler mangler = new PDFMangler();
         
-        mangler.config.inputFileName = args[0];
-        mangler.config.outputFileName = "output.pdf";
-        mangler.config.doInfo = true;
-        mangler.config.doExtract = false;
-        mangler.config.doShrink = false;
+        mangler.opts.read(args);
         
+        System.out.println("opening file " + mangler.opts.pdfFileName);
         
         try {
 
-            PDDocument doc = openDocument(mangler.config.inputFileName);
+            PDDocument doc = openDocument(mangler.opts.pdfFileName);
 
             ResolutionAnalyzer occurences = new ResolutionAnalyzer();
 
@@ -208,7 +209,9 @@ public class PDFMangler {
 
             System.out.println("--------------------------------------------");
 
-            doc.save(mangler.config.outputFileName);
+            if(mangler.opts.doShrink) {
+                doc.save(mangler.opts.pdfFileName + ".small.pdf");
+            }
 
 
         } catch (FileNotFoundException e) {
