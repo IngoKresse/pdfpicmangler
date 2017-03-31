@@ -1,4 +1,4 @@
-package pdfmangler;
+package pdfpicmangler;
 
 import java.io.File;
 import java.util.HashMap;
@@ -108,6 +108,7 @@ public class Options
         System.out.println("usage: java PDFMangler [options] [PDFFILE]");
         System.out.println("Options:");
         System.out.println("  -extract   : extract all images to files");
+        System.out.println("  -import=<folder> : import all images from folder");
         System.out.println("  -stats     : make statisics about every image in the pdf");
         System.out.println("  -res=<n>   : target resolution of the images in the pdf");
         System.out.println("  -resTh=<n> : only resize image if resolution is greater than this");

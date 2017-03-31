@@ -1,4 +1,4 @@
-package pdfmangler;
+package pdfpicmangler;
 
 import java.awt.Graphics;
 import java.awt.Image;
@@ -20,7 +20,7 @@ import org.apache.pdfbox.pdmodel.graphics.xobject.PDXObject;
 import org.apache.pdfbox.pdmodel.graphics.xobject.PDXObjectForm;
 import org.apache.pdfbox.pdmodel.graphics.xobject.PDXObjectImage;
 
-public class PDFMangler
+public class PDFPicMangler
 {
     private Options opts = new Options();
     private Map<String, Float> resolutions;
@@ -220,7 +220,7 @@ public class PDFMangler
         
         
         
-        PDFMangler mangler = new PDFMangler();
+        PDFPicMangler mangler = new PDFPicMangler();
         
         mangler.opts.read(args);
         

@@ -1,4 +1,4 @@
-package pdfmangler;
+package pdfpicmangler;
 
 import java.io.IOException;
 import java.util.HashMap;
