@@ -28,7 +28,7 @@ public class PDFMangler
     private PDDocument process(PDDocument doc, Map<String, Float> resolutions) throws IOException {
         cache = resolutions;
         
-        List pages = doc.getDocumentCatalog().getAllPages();
+        List<?> pages = doc.getDocumentCatalog().getAllPages();
         for (Object p : pages) {
             if (!(p instanceof PDPage))
                 continue;
@@ -40,6 +40,9 @@ public class PDFMangler
 
     private void scanResources(final PDResources rList, final PDDocument doc)
             throws FileNotFoundException, IOException {
+        if (rList == null) {
+            return;
+        }
         Map<String, PDXObject> xObs = rList.getXObjects();
         for (String imageName : xObs.keySet()) {
             final PDXObject xObj = xObs.get(imageName);
@@ -49,7 +52,7 @@ public class PDFMangler
                 continue;
             PDXObjectImage img = (PDXObjectImage) xObj;
             
-            // got an image!
+            // got an image!  
             
             if(opts.doExtract) {
                 img.write2file(imageName);
@@ -59,7 +62,37 @@ public class PDFMangler
             
                 System.out.println(imageInfo(img, imageName));
             }
-            
+           
+            //TODO: test this block!
+			if(opts.doImport && opts.importNames.containsKey(imageName)) {
+			    String path = opts.importPath;
+			    String fileName = opts.importNames.get(imageName);
+			    String fileNameLower = fileName.toLowerCase();
+			    String fileWithPath = path + "/" + fileName;
+			    
+			    if(fileNameLower.endsWith(".png"))
+			    {
+			        System.out.println("importing " + fileWithPath + " as " + imageName + " [PNG]");
+			        
+			        FileInputStream is = new FileInputStream(fileWithPath);
+		            img = new PDPng(doc, is);
+		            xObs.put(imageName, img);
+		            
+		            is.close();
+			    }
+			    if(fileNameLower.endsWith(".jpg") || fileNameLower.endsWith(".jpeg"))
+                {
+			        System.out.println("importing " + fileWithPath + " as " + imageName + " [JPG]");
+			        
+			        FileInputStream is = new FileInputStream(path + "/" + fileName);
+			        img = new PDJpeg(doc, is);
+			        
+			        xObs.put(imageName, img);
+                    
+                    is.close();
+                }
+			}
+ 
             if(opts.doShrink) {
                 System.out.println("Compressing image: " + imageName + " ...");
                 img = imageShrink(doc, imageName, img);
@@ -209,8 +242,9 @@ public class PDFMangler
 
             System.out.println("--------------------------------------------");
 
-            if(mangler.opts.doShrink) {
-                doc.save(mangler.opts.pdfFileName + ".small.pdf");
+            if(mangler.opts.doShrink || mangler.opts.doImport) {
+                System.out.println("writing to " + mangler.opts.outputFileName);
+                doc.save(mangler.opts.outputFileName);
             }
 
 

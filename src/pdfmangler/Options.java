@@ -1,5 +1,9 @@
 package pdfmangler;
 
+import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
+
 public class Options
 {
     public double resolution=300;
@@ -12,10 +16,14 @@ public class Options
     public boolean doShrink;
     
     public String importPath=".";
+    public Map<String, String> importNames = new HashMap<String,String>();
     public String pdfFileName="";
+    public String outputFileName="";
     
     public void read(String[] args)
     {
+        boolean gotInputFileName=false;
+        
         for(String arg: args)
         {
             try
@@ -30,7 +38,7 @@ public class Options
                 }
                 else if(arg.startsWith("-q="))
                 {
-                    resolutionThreshold = Double.parseDouble(arg.substring(3));
+                    quality = Double.parseDouble(arg.substring(3));
                 }
                 else if(arg.equals("-extract"))
                 {
@@ -44,10 +52,21 @@ public class Options
                 {
                     doImport = true;
                     importPath = arg.substring(8);
+                    
+                    scanFiles(importPath);
                 }
                 else
                 {
-                    pdfFileName = arg;
+                    if (!gotInputFileName)
+                    {
+                        pdfFileName = arg;
+                        outputFileName = pdfFileName + ".small.pdf";
+                        gotInputFileName = true;
+                    }
+                    else
+                    {
+                        outputFileName = arg;
+                    }
                 }
             }
             catch(IndexOutOfBoundsException e)
@@ -60,12 +79,25 @@ public class Options
             }
         }
         
-        if(!doExtract && !doStatistics)
+        if(!doExtract && !doStatistics && !doImport)
         {
             doShrink = true;
         }
     }
     
+    private void scanFiles(String importPath)
+    {
+        File folder = new File(importPath);
+        
+        for (final File fileEntry : folder.listFiles()) {
+            if (fileEntry.isFile()) {
+                String fileName = fileEntry.getName();
+                String baseName = fileName.substring(0, fileName.lastIndexOf('.'));
+                importNames.put(baseName, fileName);
+            }
+        }        
+    }
+
     public String toString()
     {
         return "res=" + resolution + " resTh=" + resolutionThreshold + " q=" + quality;

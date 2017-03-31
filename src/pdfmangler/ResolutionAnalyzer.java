@@ -41,7 +41,7 @@ public class ResolutionAnalyzer extends PDFStreamEngine {
     public Map<String, Float> analyze(PDDocument document) throws IOException {
         resolutions.clear();
 
-        List allPages = document.getDocumentCatalog().getAllPages();
+        List<?> allPages = document.getDocumentCatalog().getAllPages();
         for (int i = 0; i < allPages.size(); i++) {
             PDPage page = (PDPage) allPages.get(i);
             System.out.println("Processing page: " + i);
@@ -51,7 +51,7 @@ public class ResolutionAnalyzer extends PDFStreamEngine {
         return resolutions;
     }
 
-    protected void processOperator(PDFOperator operator, List arguments) throws IOException {
+    protected void processOperator(PDFOperator operator, List<COSBase> arguments) throws IOException {
         String operation = operator.getOperation();
         if (INVOKE_OPERATOR.equals(operation)) {
             COSName objectName = (COSName) arguments.get(0);
@@ -62,9 +62,7 @@ public class ResolutionAnalyzer extends PDFStreamEngine {
                 PDPage page = getCurrentPage();
                 int imageWidth = image.getWidth();
                 int imageHeight = image.getHeight();
-                double pageHeight = page.getMediaBox().getHeight();
-                System.out
-                        .println("*******************************************************************");
+                System.out.println("***************************************************************");
 
                 String imageName = objectName.getName();
 
@@ -82,13 +80,13 @@ public class ResolutionAnalyzer extends PDFStreamEngine {
                         + " mm)");
                 System.out.println("  dpi: " + (imageWidth / imageXScale) + " x "
                         + (imageHeight / imageYScale) + " dpi");
-                System.out.println();
 
                 System.out.println("  filters: " + image.getPDStream().getFilters());
                 System.out.println("  compressed_size: " + image.getPDStream().getLength());
 
-                COSBase result = page.getCOSDictionary().getDictionaryObject("UserUnit");
-                System.out.println("  userunit: " + result);
+                COSBase userUnit = page.getCOSDictionary().getDictionaryObject("UserUnit");
+                System.out.println("  userunit: " + userUnit);
+                System.out.println("***************************************************************");
 
                 float dpiX = imageWidth / imageXScale;
                 float dpiY = imageHeight / imageYScale;
@@ -101,8 +99,8 @@ public class ResolutionAnalyzer extends PDFStreamEngine {
 
                 if (resolutions.containsKey(imageName)) {
                     float dpiOld = resolutions.get(imageName);
-                    System.out.println("re-used image name=" + imageName + "dpi=" + dpi
-                            + "dpiOld=" + dpiOld);
+                    System.out.println("re-used image name=" + imageName + " dpi=" + dpi
+                            + " dpiOld=" + dpiOld);
 
                     if (dpiOld > dpi) {
                         resolutions.put(imageName, dpi);

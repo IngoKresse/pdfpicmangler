@@ -1,4 +1,2 @@
-
-- clean up logging
-- implement importin
-- write readme that explains what happens
+- get recompressed image stream size
+- complete PDPng class
