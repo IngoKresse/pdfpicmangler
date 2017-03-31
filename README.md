@@ -13,4 +13,4 @@ PNG: PDF supports png image data as encoded in the png IDAT chunks, however:
 - PDF does not support an alpha channel along with the image data -- it must be separate image object.
 - Supported in PDF but not implemented here: Transparent color.
 
-See command line documentation for options.
+See command line documentation for options. This tool is based on the great Apache library PDFBox.
