@@ -23,16 +23,18 @@ import org.apache.pdfbox.pdmodel.graphics.xobject.PDXObjectImage;
 public class PDFMangler
 {
     private Options opts = new Options();
-    private Map<String, Float> cache;
+    private Map<String, Float> resolutions;
+    private int currentPage = -1;
 
     private PDDocument process(PDDocument doc, Map<String, Float> resolutions) throws IOException {
-        cache = resolutions;
+        this.resolutions = resolutions;
         
         List<?> pages = doc.getDocumentCatalog().getAllPages();
-        for (Object p : pages) {
-            if (!(p instanceof PDPage))
+        for (int i = 0; i < pages.size(); i++) {
+            if (!(pages.get(i) instanceof PDPage))
                 continue;
-            PDPage page = (PDPage) p;
+            PDPage page = (PDPage) pages.get(i);
+            currentPage = i + 1;
             scanResources(page.getResources(), doc);
         }
         return doc;
@@ -44,13 +46,14 @@ public class PDFMangler
             return;
         }
         Map<String, PDXObject> xObs = rList.getXObjects();
-        for (String imageName : xObs.keySet()) {
-            final PDXObject xObj = xObs.get(imageName);
+        for (String imgName : xObs.keySet()) {
+            final PDXObject xObj = xObs.get(imgName);
             if (xObj instanceof PDXObjectForm)
                 scanResources(((PDXObjectForm) xObj).getResources(), doc);
             if (!(xObj instanceof PDXObjectImage))
                 continue;
             PDXObjectImage img = (PDXObjectImage) xObj;
+            String imageName = currentPage + imgName;
             
             // got an image!  
             
@@ -59,11 +62,9 @@ public class PDFMangler
             }
             
             if(opts.doStatistics) {
-            
                 System.out.println(imageInfo(img, imageName));
             }
            
-            //TODO: test this block!
 			if(opts.doImport && opts.importNames.containsKey(imageName)) {
 			    String path = opts.importPath;
 			    String fileName = opts.importNames.get(imageName);
@@ -76,7 +77,7 @@ public class PDFMangler
 			        
 			        FileInputStream is = new FileInputStream(fileWithPath);
 		            img = new PDPng(doc, is);
-		            xObs.put(imageName, img);
+		            xObs.put(imgName, img);
 		            
 		            is.close();
 			    }
@@ -87,7 +88,7 @@ public class PDFMangler
 			        FileInputStream is = new FileInputStream(path + "/" + fileName);
 			        img = new PDJpeg(doc, is);
 			        
-			        xObs.put(imageName, img);
+			        xObs.put(imgName, img);
                     
                     is.close();
                 }
@@ -95,17 +96,14 @@ public class PDFMangler
  
             if(opts.doShrink) {
                 System.out.println("Compressing image: " + imageName + " ...");
-                img = imageShrink(doc, imageName, img);
-                xObs.put(imageName, img);
+                img = imageShrink(doc, resolutions.get(imageName), img);
+                xObs.put(imgName, img);
             }
         }
         rList.setXObjects(xObs);
     }
 
-    private PDXObjectImage imageShrink(final PDDocument doc, String imageName, PDXObjectImage img) throws IOException {
-        
-        float resolution = cache.get(imageName);
-
+    private PDXObjectImage imageShrink(final PDDocument doc, float resolution, PDXObjectImage img) throws IOException {
         if (resolution > opts.resolutionThreshold) {
 
             int width = (int) (img.getWidth() * opts.resolution / resolution);
@@ -161,7 +159,7 @@ public class PDFMangler
         info.append(img.getPDStream().getLength());
         info.append(" ");
         
-        info.append((int) (cache.get(imageName).floatValue()));
+        info.append((int) (resolutions.get(imageName).floatValue()));
         info.append(" ");
         
         info.append(img.getWidth());

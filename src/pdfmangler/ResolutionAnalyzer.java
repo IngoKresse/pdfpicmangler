@@ -26,7 +26,8 @@ public class ResolutionAnalyzer extends PDFStreamEngine {
 
     // private ImageInfoCache cache = new ImageInfoCache();
     private Map<String, Float> resolutions = new HashMap<String, Float>();
-
+    private int currentPage = 0;
+    
     /**
      * Default constructor.
      * 
@@ -44,6 +45,7 @@ public class ResolutionAnalyzer extends PDFStreamEngine {
         List<?> allPages = document.getDocumentCatalog().getAllPages();
         for (int i = 0; i < allPages.size(); i++) {
             PDPage page = (PDPage) allPages.get(i);
+            currentPage = i + 1;
             System.out.println("Processing page: " + i);
             processStream(page, page.findResources(), page.getContents().getStream());
         }
@@ -64,7 +66,7 @@ public class ResolutionAnalyzer extends PDFStreamEngine {
                 int imageHeight = image.getHeight();
                 System.out.println("***************************************************************");
 
-                String imageName = objectName.getName();
+                String imageName = currentPage + objectName.getName();
 
                 System.out.println("Found image [" + imageName + "]");
 
