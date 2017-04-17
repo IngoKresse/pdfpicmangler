@@ -1,4 +1,5 @@
-=== What it is ===
+What it is
+==========
 
 The pdfpicmangler re-samples images in a pdf document to a target resolution in order to reduce file size.
 
